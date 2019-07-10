@@ -24,4 +24,9 @@ else:
         script = sys.argv[1]
         if script not in t["scripts"]:
             sys.exit(f'no script "{script}"; try one of {script_names(t)}')
-        subprocess.run(t["scripts"][script])
+
+        try:
+            # https://stackoverflow.com/questions/23826695/handling-keyboard-interrupt-when-using-subproccess
+            subprocess.run(t["scripts"][script], shell=True)
+        except KeyboardInterrupt:
+            sys.exit()
