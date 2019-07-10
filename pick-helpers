@@ -1,0 +1,92 @@
+#!/usr/bin/python
+import subprocess
+import argparse
+import sys
+import os
+from functools import wraps
+
+
+parser = argparse.ArgumentParser(description='Invoke a pick-helpers function.')
+
+parser.add_argument(
+    '--function',
+    required=True,
+    help='Specify public function to invoke. This argument is required. '
+    'See README for descriptions of public functions.',
+)
+parser.add_argument('args', help='Pass other args to function.', nargs='*')
+
+
+def exit_on_keyboard_interrupt(f):
+    """Decorator that allows user to exit script by sending a keyboard interrupt
+    (ctrl + c) without raising an exception.
+    """
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        raise_exception = kwargs.pop('raise_exception', False)
+        try:
+            return f(*args, **kwargs)
+        except KeyboardInterrupt:
+            if not raise_exception:
+                sys.exit()
+            raise KeyboardInterrupt
+    return wrapper
+
+
+def to_string(b):
+    """Converts bytes to string if necessary.
+    """
+    if type(b) is bytes:  # handle python2 and python3
+        return b.decode('utf-8')
+    return b
+
+
+def dedup(seq):
+    seen = set()
+    seen_add = seen.add
+    return [x for x in seq if not (x in seen or seen_add(x))]
+
+
+def jump(args):
+    p = subprocess.Popen(['autojump', '--complete'] + args.args, stdout=subprocess.PIPE)
+    out, err = p.communicate()
+
+    paths = to_string(out).split('\n')
+    # this doesn't need to work for windows paths, because there's no pick for windows
+    paths = ['/' + p.split('/', 1)[-1] for p in paths if p]
+    paths = dedup(paths)
+    paths.append('')
+
+    pick_p = subprocess.Popen(['pick'], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    out, err = pick_p.communicate(
+        '\n'.join(paths).encode(encoding='utf-8'),
+    )
+    print(to_string(out).strip())
+
+
+@exit_on_keyboard_interrupt
+def main():
+    """The `console_scripts` entry point for pick-helpers. There's no need to pass
+    arguments to this function, because `argparse` reads `sys.argv[1:]`.
+
+    http://python-packaging.readthedocs.io/en/latest/command-line-scripts.html#the-console-scripts-entry-point
+    """
+    args = parser.parse_args()
+    FNULL = open(os.devnull, 'w')
+    if not subprocess.call(['which', 'pick'], stdout=FNULL) == 0:
+        print("pick isn't installed! exiting...")
+        sys.exit()
+
+    fn = functions_dict.get(args.function, None)
+    if fn is None:
+        print("{} isn't a valid function! exiting...".format(args.function))
+        sys.exit()
+    fn(args)
+
+
+functions_dict = {
+    'jump': jump,
+}
+
+if __name__ == '__main__':
+    main()
