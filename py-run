@@ -1,0 +1,27 @@
+#!/usr/local/bin/python3.7
+from typing import cast, Dict
+import sys
+import toml
+import subprocess
+
+
+def script_names(t: Dict) -> str:
+    scripts = ", ".join(t["scripts"].keys())
+    return f"({scripts})"
+
+
+try:
+    f = open("./pyproject.toml", "r")
+except IOError:
+    sys.exit("couldn't find `pyproject.toml`")
+else:
+    with f:
+        t = cast(Dict, toml.loads(f.read()))
+        if "scripts" not in t:
+            sys.exit('no "scripts" section in pyproject.toml')
+        if len(sys.argv) <= 1:
+            sys.exit(f"pass a script name: {script_names(t)}")
+        script = sys.argv[1]
+        if script not in t["scripts"]:
+            sys.exit(f'no script "{script}"; try one of {script_names(t)}')
+        subprocess.run(t["scripts"][script])
